@@ -59,9 +59,22 @@ class BigQueryBatchTestSetup(SQLBatchTestSetup[BigQueryDatasourceTestConfig]):
     @property
     @override
     def use_schema(self) -> bool:
-        # BigQuery calls its schemas "datasets". Their docs show that the sql way of defining a
-        # dataset is to create a schema: https://cloud.google.com/bigquery/docs/datasets#sql
-        return True
+        # BigQuery calls its schemas "datasets", so a per-test schema means a per-test
+        # dataset. Datasets are project-level objects, which makes them a poor unit of
+        # test isolation here: creating and dropping one per test config adds two DDL
+        # round trips to every setup and teardown, and any run killed before teardown
+        # leaves an orphan that only an out-of-band sweep can find.
+        #
+        # None of that buys isolation we don't already have. Table names carry a uuid4
+        # suffix, so concurrent runs cannot collide regardless of which dataset they
+        # share. Tests therefore create their tables directly in the configured CI
+        # dataset, and cleanup only ever has to reason about tables in one known place.
+        #
+        # A test that genuinely needs schema-qualified coverage on BigQuery should say
+        # so explicitly rather than have every test pay for it; passing `schema_name`
+        # while this returns False raises, so that need surfaces as a clear error
+        # rather than silently doing the wrong thing.
+        return False
 
     @override
     def make_asset(self) -> TableAsset:
