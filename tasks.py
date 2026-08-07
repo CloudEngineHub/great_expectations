@@ -876,6 +876,8 @@ MARKER_DEPENDENCY_MAP: Final[Mapping[str, TestDependencies]] = {
         services=("spark",),
         extra_pytest_args=("--spark", "--docs-tests"),
     ),
+    # Deprecated alias for "redshift". Both now install the same upstream dialect;
+    # kept so existing invocations keep resolving.
     "gx-redshift": TestDependencies(
         requirement_files=("reqs/requirements-dev-gx-redshift.txt",),
     ),
