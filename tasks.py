@@ -481,6 +481,24 @@ def docker(
     ctx.run(" ".join(cmds), echo=True, pty=True)
 
 
+# Expectation classes that are registered but whose source class defines no curated
+# `Config.schema_extra` metadata block (short description, data quality issues,
+# supported data sources). Generated JSON schemas and any catalog built from them
+# read that block, so an expectation without one can't produce a complete entry -
+# emitting one anyway would silently pass off a structurally incomplete schema as a
+# real one. Recording the gap explicitly here lets completeness checks tell a known,
+# documented absence apart from an accidental one.
+EXPECTATIONS_WITHOUT_SCHEMAS: Final[frozenset[str]] = frozenset(
+    {
+        "ExpectColumnValuesToBeDateutilParseable",
+        "ExpectColumnValuesToBeDecreasing",
+        "ExpectColumnValuesToBeIncreasing",
+        "ExpectColumnValuesToBeJsonParseable",
+        "ExpectColumnValuesToMatchJsonSchema",
+    }
+)
+
+
 @invoke.task(
     aliases=("schema", "schemas"),
     help={
@@ -624,7 +642,6 @@ def type_schema(  # noqa: C901 - too complex
         core.ExpectColumnValuesToMatchRegexList,
         core.ExpectColumnValuesToMatchStrftimeFormat,
         core.ExpectColumnValuesToNotBeInSet,
-        core.ExpectColumnValuesToNotBeNull,
         core.ExpectColumnValuesToNotMatchLikePattern,
         core.ExpectColumnValuesToNotMatchLikePatternList,
         core.ExpectColumnValuesToNotMatchRegex,
