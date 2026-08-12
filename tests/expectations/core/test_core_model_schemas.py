@@ -44,7 +44,11 @@ def test_schemas_updated():
         for cls_name, expectation in expectation_dictionary.items()
         if isinstance(expectation, MetaExpectation)
     }
-    schema_file_paths = Path(schemas.__file__).parent.glob("*.json")
+    # `index.json` is a generated catalog derived from these per-class schemas, not a
+    # schema for a class itself, so it has no corresponding entry in `all_models`.
+    schema_file_paths = (
+        path for path in Path(schemas.__file__).parent.glob("*.json") if path.stem != "index"
+    )
     all_schemas = {file_path.stem: file_path.read_text() for file_path in schema_file_paths}
     for cls_name, schema in all_schemas.items():
         # converting to dicts for easier comparision on failure
@@ -57,7 +61,11 @@ def test_schemas_updated():
 def test_schemas_valid_spec(safer_draft_7_validator: type[Draft7Validator]):
     # https://json-schema.org/draft-07
     # https://jsonforms.io/api/core/interfaces/jsonschema7
-    schema_file_paths = Path(schemas.__file__).parent.glob("*.json")
+    # `index.json` is a generated catalog, not itself a JSON Schema document, so it's
+    # exempt from JSON Schema spec validation.
+    schema_file_paths = (
+        path for path in Path(schemas.__file__).parent.glob("*.json") if path.stem != "index"
+    )
     for file_path in schema_file_paths:
         with open(file_path) as schema_file:
             try:

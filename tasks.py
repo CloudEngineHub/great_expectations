@@ -12,6 +12,7 @@ To show task help page `invoke <NAME> --help`
 from __future__ import annotations
 
 import importlib
+import json
 import logging
 import os
 import pathlib
@@ -499,6 +500,124 @@ EXPECTATIONS_WITHOUT_SCHEMAS: Final[frozenset[str]] = frozenset(
 )
 
 
+def _emit_datasource_factory_index(indent: int) -> str:
+    """Build the datasource schema-to-factory-method index.
+
+    Most datasource types snake-case cleanly from their class name, but six of the
+    twenty-six do not (e.g. `BigQueryDatasource` -> `add_or_update_bigquery`,
+    `PandasAzureBlobStorageDatasource` -> `add_or_update_pandas_abs`), so no single rule
+    reproduces the whole mapping. Reading it from the live type registry at generation
+    time, once, freezes the correct mapping into shipped data so nothing consuming the
+    index ever needs to import or introspect the registry itself.
+    """
+    from great_expectations.datasource.fluent.sources import (
+        DataSourceManager,
+        _iter_all_registered_types,
+    )
+
+    datasource_factory_index: dict[str, str] = {
+        f"{ds_type.__name__}.json": f"add_or_update_{ds_name}"
+        for ds_name, ds_type in _iter_all_registered_types(include_data_asset=False)
+    }
+
+    # The factory method name above is reconstructed from the registered type name, not
+    # read off the live factory registry, so if the `add_or_update_<type_name>` naming
+    # convention ever changes, the reconstruction would silently produce a name that
+    # doesn't exist. Check every reconstructed name against the real factory surface so
+    # that kind of drift fails loudly here instead of shipping an index that points at
+    # methods which don't exist. A bare instance is enough - `factories` only reads the
+    # class-level registry and never touches instance state.
+    known_factory_names = frozenset(DataSourceManager.__new__(DataSourceManager).factories)
+    unknown_factory_names = sorted(set(datasource_factory_index.values()) - known_factory_names)
+    if unknown_factory_names:
+        raise ValueError(  # noqa: TRY003
+            "Generated datasource factory index references factory methods that do not "
+            f"exist on DataSourceManager: {unknown_factory_names}"
+        )
+
+    return json.dumps(datasource_factory_index, indent=indent, sort_keys=True) + "\n"
+
+
+def _emit_expectation_catalog_index(
+    supported_expectations: list,
+    indent: int,
+) -> str:
+    """Build the expectation catalog index.
+
+    The catalog metadata (short description, data quality issues, supported data
+    sources) is read from each expectation's live model, the same source the per-class
+    schema files are generated from, and keyed by its snake_case `expectation_type`
+    rather than its class name. Extracting it once here - rather than leaving every
+    consumer to re-parse every schema file - gives agents a single lookup table that
+    stays in lockstep with the schemas because both are emitted by the same generation
+    step.
+
+    Expectations that are registered but whose source class defines no curated metadata
+    block can't produce a complete catalog entry (see `EXPECTATIONS_WITHOUT_SCHEMAS`).
+    They're listed under `documented_absent` explicitly, rather than left as an implicit
+    gap, so a completeness check can tell a documented absence from an accidental one.
+    """
+    from great_expectations.expectations import core
+
+    expectation_catalog_index: dict[str, dict[str, object]] = {}
+    for x in supported_expectations:
+        metadata = x.schema()["properties"]["metadata"]["properties"]  # type: ignore[attr-defined]
+        expectation_catalog_index[x.expectation_type] = {  # type: ignore[attr-defined]
+            "schema_file": f"{x.__name__}.json",
+            "short_description": metadata["short_description"]["const"],
+            "data_quality_issues": metadata["data_quality_issues"]["const"],
+            "supported_data_sources": metadata["supported_data_sources"]["const"],
+        }
+
+    documented_absent = sorted(
+        getattr(core, cls_name).expectation_type for cls_name in EXPECTATIONS_WITHOUT_SCHEMAS
+    )
+
+    return (
+        json.dumps(
+            {
+                "expectations": expectation_catalog_index,
+                "documented_absent": documented_absent,
+            },
+            indent=indent,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+def _emit_catalog_indexes(
+    data_source_schema_dir_root: pathlib.Path,
+    expectation_schema_dir_root: pathlib.Path,
+    supported_expectations: list,
+    indent: int,
+    sync: bool,
+) -> None:
+    """Write both generated catalog indexes (datasource factory methods, expectations).
+
+    Regenerating these only makes sense once the per-class schema files they summarize
+    have themselves been (re)written, which is gated on `--sync` the same way those are.
+    """
+    if not sync:
+        return
+
+    datasource_factory_json = _emit_datasource_factory_index(indent)
+    (data_source_schema_dir_root / "index.json").write_text(datasource_factory_json)
+    print(
+        "🔃  index.json - datasource factory-method index updated"
+        f" ({len(json.loads(datasource_factory_json))} types)"
+    )
+
+    expectation_catalog_json = _emit_expectation_catalog_index(supported_expectations, indent)
+    (expectation_schema_dir_root / "index.json").write_text(expectation_catalog_json)
+    expectation_catalog = json.loads(expectation_catalog_json)
+    print(
+        "🔃  index.json - expectation catalog index updated"
+        f" ({len(expectation_catalog['expectations'])} expectations,"
+        f" {len(expectation_catalog['documented_absent'])} documented absent)"
+    )
+
+
 @invoke.task(
     aliases=("schema", "schemas"),
     help={
@@ -656,6 +775,14 @@ def type_schema(  # noqa: C901 - too complex
         if sync:
             schema_path.write_text(json_str)
             print(f"🔃  {x.__name__}.json updated")
+
+    _emit_catalog_indexes(
+        data_source_schema_dir_root,
+        expectation_schema_dir_root,
+        supported_expectations,
+        indent,
+        sync,
+    )
 
     raise invoke.Exit(code=0)
 
