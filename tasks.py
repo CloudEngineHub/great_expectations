@@ -499,6 +499,67 @@ EXPECTATIONS_WITHOUT_SCHEMAS: Final[frozenset[str]] = frozenset(
     }
 )
 
+# The `core` expectation classes that get a generated schema file and a catalog entry.
+# Named once here, by class name, rather than as literal class references, so this module
+# can be imported without pulling in the (multi-second) `great_expectations` import - the
+# names are resolved against the live `core` module only inside the functions that need
+# actual classes. Kept as a single source of truth because it can't be reconstructed from
+# the registry alone: `registered - EXPECTATIONS_WITHOUT_SCHEMAS` overcounts by one, since
+# `ExpectMulticolumnValuesToBeUnique` is a `core` class that is never registered.
+SUPPORTED_EXPECTATIONS: Final[tuple[str, ...]] = (
+    "ExpectColumnValuesToBeNull",
+    "ExpectColumnValuesToNotBeNull",
+    "ExpectColumnValuesToBeUnique",
+    "ExpectColumnValuesToBeInSet",
+    "ExpectColumnMaxToBeBetween",
+    "ExpectColumnMeanToBeBetween",
+    "ExpectColumnMedianToBeBetween",
+    "ExpectColumnMinToBeBetween",
+    "ExpectColumnValuesToBeInTypeList",
+    "ExpectColumnValuesToBeOfType",
+    "ExpectTableColumnsToMatchOrderedList",
+    "ExpectTableRowCountToBeBetween",
+    "ExpectTableRowCountToEqual",
+    "ExpectColumnPairValuesToBeEqual",
+    "ExpectMulticolumnSumToEqual",
+    "ExpectCompoundColumnsToBeUnique",
+    "ExpectSelectColumnValuesToBeUniqueWithinRecord",
+    "ExpectColumnPairValuesAToBeGreaterThanB",
+    "ExpectColumnToExist",
+    "ExpectTableColumnCountToEqual",
+    "ExpectTableColumnsToMatchSet",
+    "ExpectTableColumnCountToBeBetween",
+    "ExpectTableRowCountToEqualOtherTable",
+    "ExpectColumnPairValuesToBeInSet",
+    "ExpectColumnProportionOfUniqueValuesToBeBetween",
+    "ExpectColumnUniqueValueCountToBeBetween",
+    "ExpectColumnDistinctValuesToBeInSet",
+    "ExpectColumnDistinctValuesToContainSet",
+    "ExpectColumnDistinctValuesToEqualSet",
+    "ExpectColumnMostCommonValueToBeInSet",
+    "ExpectColumnStdevToBeBetween",
+    "ExpectColumnSumToBeBetween",
+    "ExpectColumnKLDivergenceToBeLessThan",
+    "ExpectColumnQuantileValuesToBeBetween",
+    "ExpectColumnValueLengthsToBeBetween",
+    "ExpectColumnValueLengthsToEqual",
+    "ExpectColumnValueZScoresToBeLessThan",
+    "ExpectColumnValuesToBeBetween",
+    "ExpectColumnValuesToMatchLikePattern",
+    "ExpectColumnValuesToMatchLikePatternList",
+    "ExpectColumnValuesToMatchRegex",
+    "ExpectColumnValuesToMatchRegexList",
+    "ExpectColumnValuesToMatchStrftimeFormat",
+    "ExpectColumnValuesToNotBeInSet",
+    "ExpectColumnValuesToNotMatchLikePattern",
+    "ExpectColumnValuesToNotMatchLikePatternList",
+    "ExpectColumnValuesToNotMatchRegex",
+    "ExpectColumnValuesToNotMatchRegexList",
+    "UnexpectedRowsExpectation",
+    "ExpectQueryResultsToMatchComparison",
+    "ExpectColumnProportionOfNonNullValuesToBeBetween",
+)
+
 
 def _emit_datasource_factory_index(indent: int) -> str:
     """Build the datasource schema-to-factory-method index.
@@ -539,8 +600,8 @@ def _emit_datasource_factory_index(indent: int) -> str:
 
 
 def _emit_expectation_catalog_index(
-    supported_expectations: list,
-    indent: int,
+    supported_expectations: Sequence[type] | None = None,
+    indent: int = 4,
 ) -> str:
     """Build the expectation catalog index.
 
@@ -556,8 +617,15 @@ def _emit_expectation_catalog_index(
     block can't produce a complete catalog entry (see `EXPECTATIONS_WITHOUT_SCHEMAS`).
     They're listed under `documented_absent` explicitly, rather than left as an implicit
     gap, so a completeness check can tell a documented absence from an accidental one.
+
+    `supported_expectations` defaults to resolving `SUPPORTED_EXPECTATIONS` against the
+    live `core` module, so a caller that just wants the current catalog - e.g. a test
+    regenerating it for comparison - doesn't have to duplicate that class list itself.
     """
     from great_expectations.expectations import core
+
+    if supported_expectations is None:
+        supported_expectations = [getattr(core, name) for name in SUPPORTED_EXPECTATIONS]
 
     expectation_catalog_index: dict[str, dict[str, object]] = {}
     for x in supported_expectations:
@@ -716,59 +784,7 @@ def type_schema(  # noqa: C901 - too complex
             print(f"❌  {name} - Could not sync schema - {type(err).__name__}:{err}")
 
     # handle expectations
-    supported_expectations = [
-        core.ExpectColumnValuesToBeNull,
-        core.ExpectColumnValuesToNotBeNull,
-        core.ExpectColumnValuesToBeUnique,
-        core.ExpectColumnValuesToBeInSet,
-        core.ExpectColumnMaxToBeBetween,
-        core.ExpectColumnMeanToBeBetween,
-        core.ExpectColumnMedianToBeBetween,
-        core.ExpectColumnMinToBeBetween,
-        core.ExpectColumnValuesToBeInTypeList,
-        core.ExpectColumnValuesToBeOfType,
-        core.ExpectTableColumnsToMatchOrderedList,
-        core.ExpectTableRowCountToBeBetween,
-        core.ExpectTableRowCountToEqual,
-        core.ExpectColumnPairValuesToBeEqual,
-        core.ExpectMulticolumnSumToEqual,
-        core.ExpectCompoundColumnsToBeUnique,
-        core.ExpectSelectColumnValuesToBeUniqueWithinRecord,
-        core.ExpectColumnPairValuesAToBeGreaterThanB,
-        core.ExpectColumnToExist,
-        core.ExpectTableColumnCountToEqual,
-        core.ExpectTableColumnsToMatchSet,
-        core.ExpectTableColumnCountToBeBetween,
-        core.ExpectTableRowCountToEqualOtherTable,
-        core.ExpectColumnPairValuesToBeInSet,
-        core.ExpectColumnProportionOfUniqueValuesToBeBetween,
-        core.ExpectColumnUniqueValueCountToBeBetween,
-        core.ExpectColumnDistinctValuesToBeInSet,
-        core.ExpectColumnDistinctValuesToContainSet,
-        core.ExpectColumnDistinctValuesToEqualSet,
-        core.ExpectColumnMostCommonValueToBeInSet,
-        core.ExpectColumnStdevToBeBetween,
-        core.ExpectColumnSumToBeBetween,
-        core.ExpectColumnKLDivergenceToBeLessThan,
-        core.ExpectColumnQuantileValuesToBeBetween,
-        core.ExpectColumnValueLengthsToBeBetween,
-        core.ExpectColumnValueLengthsToEqual,
-        core.ExpectColumnValueZScoresToBeLessThan,
-        core.ExpectColumnValuesToBeBetween,
-        core.ExpectColumnValuesToMatchLikePattern,
-        core.ExpectColumnValuesToMatchLikePatternList,
-        core.ExpectColumnValuesToMatchRegex,
-        core.ExpectColumnValuesToMatchRegexList,
-        core.ExpectColumnValuesToMatchStrftimeFormat,
-        core.ExpectColumnValuesToNotBeInSet,
-        core.ExpectColumnValuesToNotMatchLikePattern,
-        core.ExpectColumnValuesToNotMatchLikePatternList,
-        core.ExpectColumnValuesToNotMatchRegex,
-        core.ExpectColumnValuesToNotMatchRegexList,
-        core.UnexpectedRowsExpectation,
-        core.ExpectQueryResultsToMatchComparison,
-        core.ExpectColumnProportionOfNonNullValuesToBeBetween,
-    ]
+    supported_expectations = [getattr(core, name) for name in SUPPORTED_EXPECTATIONS]
     for x in supported_expectations:
         schema_path = expectation_dir.joinpath(f"{x.__name__}.json")
         json_str = x.schema_json(indent=indent) + "\n"  # type: ignore[attr-defined] # FIXME low priority
