@@ -9,7 +9,7 @@ anything else.
 
 Call the context factory like this, not with a bare call:
 
-```python
+```python executable
 import great_expectations as gx
 
 context = gx.get_context(cloud_mode=False)
@@ -39,7 +39,7 @@ they have no effect on the session you're about to build.
 `gx.get_context(cloud_mode=False)` returns one of two things. Branch on the
 type:
 
-```python
+```python executable
 from great_expectations.data_context import FileDataContext
 
 if isinstance(context, FileDataContext):
@@ -118,7 +118,7 @@ exactly as if `GX_HOME` had never been set. If the user believes they have a
 project and you get an in-memory session instead, this is the first thing to
 check. Validate it yourself, since the factory won't:
 
-```python
+```python executable
 import os
 from pathlib import Path
 

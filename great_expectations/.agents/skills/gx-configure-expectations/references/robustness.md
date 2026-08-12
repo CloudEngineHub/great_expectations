@@ -17,7 +17,7 @@ is nothing left to check in about. Instead, run the call on a worker thread
 and poll it with a timeout, so you get control back at regular intervals
 while the real call is still in flight:
 
-```python
+```python executable
 import concurrent.futures
 import time
 

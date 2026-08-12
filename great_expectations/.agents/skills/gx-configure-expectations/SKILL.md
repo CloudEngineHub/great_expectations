@@ -56,7 +56,7 @@ not read a file directly with pandas, do not construct a batch by hand.
 
 Enumerate what the session already has:
 
-```python
+```python executable
 def existing_batch_definitions(context):
     """(data source, asset, batch definition) name triples available in this session."""
     found = []
@@ -77,7 +77,7 @@ If it returns more than one, name them and let the user choose; guessing which
 slice of their data they meant to assert against is not a decision to make for
 them. Then retrieve the batch:
 
-```python
+```python executable
 datasource_name, asset_name, batch_definition_name = existing_batch_definitions(context)[0]
 batch_definition = (
     context.data_sources.get(datasource_name)
@@ -131,7 +131,7 @@ what you observed into an expectation without being asked is not.
 **Register the suite with the context before adding any expectation to it.**
 This is the ordering rule, and getting it backwards loses work silently:
 
-```python
+```python executable
 import great_expectations as gx
 
 SUITE_NAME = "orders_quality"
@@ -191,7 +191,7 @@ silently.
 
 ## Step 5 — Validate, and report each expectation on its own terms
 
-```python
+```python executable
 result = batch.validate(suite)
 ```
 
@@ -207,18 +207,25 @@ the platform apply unchanged.
 ### Pair results with expectations by configuration, never by position
 
 **`result.results` does not come back in the order the expectations were
-added, and the order it does come back in is not predictable from the suite.**
-A suite built as `to_exist`, `not_be_null`, `be_between`, `mean_to_be_between`
-returns `to_exist`, `be_between`, `mean_to_be_between`, `not_be_null`. Point
-that last expectation at a column that does not exist, changing nothing else,
-and the same suite returns `mean_to_be_between`, `to_exist`, `be_between`,
-`not_be_null`. Each ordering is stable across runs, so neither looks like a
-bug.
+added.** Validation regroups the suite before running it, in two ways. Both
+are stable across runs, so neither ever looks like a bug:
 
-What makes this dangerous is that some suites *do* come back in order — a
-two-expectation suite, or three aggregates over one column, both did. Pairing
-your input list with the results by index therefore looks correct while you
-are trying it out and mislabels every finding once the suite grows.
+- **Expectations are grouped by the column they address.** Every check on one
+  column is evaluated together, in the order that column was first mentioned.
+  A suite added as `not_be_null(customer)`, `mean_to_be_between(amount)`,
+  `values_to_be_unique(customer)`, `max_to_be_between(amount)` comes back with
+  the two `customer` checks first and the two `amount` checks after. Checks
+  with no `column` argument at all, such as a table row count, form a group of
+  their own.
+- **An expectation whose metric errored is moved ahead of every expectation
+  that ran**, so a broken parameter also changes the position of everything
+  else.
+
+What makes this dangerous is that plenty of suites *do* come back in the order
+they were built: any suite written column by column already matches the
+grouping, and so does a two- or three-expectation suite over one column.
+Pairing your input list with the results by index therefore looks correct
+while you are trying it out and mislabels every finding once the suite grows.
 
 Read the identity off each result instead: `each.expectation_config.type` and
 `each.expectation_config.kwargs`.
@@ -228,7 +235,7 @@ Read the identity off each result instead: `each.expectation_config.type` and
 `success is False` means two very different things, and reporting them the
 same way tells the user their data is bad when their configuration is:
 
-```python
+```python executable
 for each in result.results:
     config = each.expectation_config
     if each.success:
@@ -330,7 +337,7 @@ and amounts must never be negative.
 ```python
 import great_expectations as gx
 
-context = gx.get_context(cloud_mode=False)          # step 1, per preflight.md
+context = gx.get_context(cloud_mode=False)          # step 1, per references/preflight.md
 
 batch_definition = (                                 # step 2, from what already exists
     context.data_sources.get("warehouse")

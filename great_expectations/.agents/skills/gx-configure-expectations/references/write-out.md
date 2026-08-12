@@ -59,7 +59,7 @@ run once, unconditionally, without wiping a datasource that's already there.
 List it exactly once, before any asset step, even when the session created
 several assets on it:
 
-```python
+```python executable
 import great_expectations as gx
 
 # 1. Open (or create) the file-backed project at the confirmed location.
@@ -155,7 +155,7 @@ asset's *configuration* is written out. After write-out, and in every future
 session, retrieving a batch from a dataframe asset still requires passing the
 dataframe explicitly at call time:
 
-```python
+```python executable
 batch = batch_definition.get_batch(batch_parameters={"dataframe": df})
 ```
 

@@ -164,7 +164,7 @@ wrapper in `references/robustness.md` like any other data-touching call.
 
 ### The pattern
 
-```python
+```python executable
 DATASOURCE_NAME, ASSET_NAME, BATCH_DEFINITION_NAME = "warehouse", "orders", "by_month"
 
 # --- data source: create only if absent; never replace an existing one ---
@@ -233,7 +233,7 @@ that basis means telling the user their setup works when it does not.
 
 Always follow retrieval with a probe that actually reads data:
 
-```python
+```python executable
 batch = batch_definition.get_batch()  # add batch_parameters=... for a partitioned definition
 head = batch.head(n_rows=5)           # this is the step that touches the data
 ```
@@ -368,7 +368,7 @@ exploration tool rather than a batching mechanism.
 A dataframe asset stores configuration only — the data itself is handed over
 at retrieval time, every time, in this session and in every future one:
 
-```python
+```python executable
 datasource = context.data_sources.add_or_update_pandas(name="in_memory")
 asset = datasource.add_dataframe_asset(name="customers")
 batch_definition = asset.add_batch_definition_whole_dataframe(name="all_rows")
