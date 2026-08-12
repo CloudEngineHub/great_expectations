@@ -22,8 +22,9 @@ user, not to Great Expectations:
     destination is only ever the complete old tree, absent, or the complete new tree.
 
 Problems with one skill never abort the others and are never raised: they are collected
-in the returned report so the caller can disclose every one of them. Nothing here is
-part of the public Python API -- the command-line entry point is the supported surface.
+in the returned report, each labelled with what went wrong, so the caller can disclose
+every one of them and explain the ones that need explaining. Nothing here is part of
+the public Python API -- the command-line entry point is the supported surface.
 """
 
 from __future__ import annotations
@@ -85,6 +86,41 @@ class InstallMode(enum.Enum):
     SYMLINK = "symlink"
 
 
+class SkillFailureKind(enum.Enum):
+    """What went wrong at a destination, as a fact rather than something to deduce.
+
+    A caller that explains failures has to tell a refusal -- a destination this package
+    declines to touch because of what it holds -- apart from a destination it simply
+    could not read or write. The two call for opposite advice, and nothing observable
+    about the destination afterwards distinguishes them: a directory refused for local
+    edits and a directory whose files could not be read both still exist, both still
+    hold a valid manifest, and both leave the run's own filesystem state unchanged. The
+    only place that knows which happened is the code that decided, so it says so here.
+    """
+
+    #: Nothing there claims Great Expectations as its owner. Never replaced.
+    FOREIGN_DESTINATION = "foreign_destination"
+    #: Installed by this package and edited since. Replaced only under ``force``.
+    LOCALLY_MODIFIED = "locally_modified"
+    #: Could not be read, so whether it was safe to replace could not be decided.
+    UNREADABLE_DESTINATION = "unreadable_destination"
+    #: The new content could not be written or moved into place.
+    WRITE_FAILED = "write_failed"
+    #: Symlinks were asked for and the platform would not create them.
+    SYMLINKS_UNSUPPORTED = "symlinks_unsupported"
+
+
+@dataclass(frozen=True)
+class SkillInstallFailure:
+    """One destination the run left alone, and why."""
+
+    destination: Path
+    kind: SkillFailureKind
+    #: Text written to be read by the user: what happened, the state the destination is
+    #: in now, and one thing to do about it.
+    reason: str
+
+
 @dataclass(frozen=True)
 class SkillInstallReport:
     """The outcome of an install run, one entry per skill per target directory.
@@ -99,8 +135,8 @@ class SkillInstallReport:
     up_to_date: tuple[Path, ...]
     #: Unmodified destinations from another version, replaced with the bundled skill.
     replaced: tuple[Path, ...]
-    #: Destinations left alone, each with a reason: refusals and write failures alike.
-    failed: tuple[tuple[Path, str], ...]
+    #: Destinations left alone: refusals and write failures alike, each labelled.
+    failed: tuple[SkillInstallFailure, ...]
 
 
 class _Outcome(enum.Enum):
@@ -115,8 +151,14 @@ class _SkillRefusal(Exception):
     """A problem with a single destination: reported to the user, never raised at them.
 
     The message is the text the user reads next to the destination path, so it says
-    what happened, what state the destination is in now, and what to do about it.
+    what happened, what state the destination is in now, and what to do about it. The
+    kind travels with it because a caller that groups or explains failures cannot
+    recover it from the message without matching on prose.
     """
+
+    def __init__(self, kind: SkillFailureKind, reason: str) -> None:
+        super().__init__(reason)
+        self.kind = kind
 
 
 @dataclass(frozen=True)
@@ -310,7 +352,7 @@ def install_skills(
     context = _InstallContext(mode=mode, force=force, version=_installed_gx_version())
 
     outcomes: dict[_Outcome, list[Path]] = {outcome: [] for outcome in _Outcome}
-    failed: list[tuple[Path, str]] = []
+    failed: list[SkillInstallFailure] = []
 
     for target in targets:
         parent = root / target.value
@@ -318,7 +360,10 @@ def install_skills(
             parent.mkdir(parents=True, exist_ok=True)
         except OSError as error:
             reason = _write_failure_reason(error)
-            failed.extend((parent / skill.name, reason) for skill in skills)
+            failed.extend(
+                SkillInstallFailure(parent / skill.name, SkillFailureKind.WRITE_FAILED, reason)
+                for skill in skills
+            )
             continue
         _clear_staging_remnants(parent)
         for skill in skills:
@@ -326,7 +371,7 @@ def install_skills(
             try:
                 outcome = _install_one(skill, destination, digests[skill], context)
             except _SkillRefusal as refusal:
-                failed.append((destination, str(refusal)))
+                failed.append(SkillInstallFailure(destination, refusal.kind, str(refusal)))
             else:
                 outcomes[outcome].append(destination)
 
@@ -354,7 +399,7 @@ def _install_one(
 
     manifest = read_skill_manifest(destination)
     if manifest is None:
-        raise _SkillRefusal(_FOREIGN_DESTINATION_REASON)
+        raise _SkillRefusal(SkillFailureKind.FOREIGN_DESTINATION, _FOREIGN_DESTINATION_REASON)
 
     try:
         unmodified = _is_unmodified(destination, manifest)
@@ -363,10 +408,12 @@ def _install_one(
         # Inspecting a destination means reading it, and the destination belongs to the
         # user: a path left unreadable by an install run as another user, or by a
         # restrictive umask, has to cost this one destination and no more.
-        raise _SkillRefusal(_unreadable_destination_reason(error)) from error
+        raise _SkillRefusal(
+            SkillFailureKind.UNREADABLE_DESTINATION, _unreadable_destination_reason(error)
+        ) from error
 
     if not unmodified and not context.force:
-        raise _SkillRefusal(_LOCALLY_MODIFIED_REASON)
+        raise _SkillRefusal(SkillFailureKind.LOCALLY_MODIFIED, _LOCALLY_MODIFIED_REASON)
     if current:
         return _Outcome.UP_TO_DATE
 
@@ -451,7 +498,7 @@ def _materialize(source: Path, destination: Path, digest: str, context: _Install
         raise
     except OSError as error:
         _remove(staging)
-        raise _SkillRefusal(_write_failure_reason(error)) from error
+        raise _SkillRefusal(SkillFailureKind.WRITE_FAILED, _write_failure_reason(error)) from error
     _swap_into_place(staging, destination)
 
 
@@ -470,12 +517,16 @@ def _stage(source: Path, staging: Path, mode: InstallMode) -> None:
             for entry in sorted(source.iterdir()):
                 (staging / entry.name).symlink_to(entry, target_is_directory=entry.is_dir())
         except (OSError, NotImplementedError) as error:
-            raise _SkillRefusal(_symlink_failure_reason(error)) from error
+            raise _SkillRefusal(
+                SkillFailureKind.SYMLINKS_UNSUPPORTED, _symlink_failure_reason(error)
+            ) from error
     else:
         try:
             shutil.copytree(source, staging, symlinks=True)
         except (OSError, shutil.Error) as error:
-            raise _SkillRefusal(_write_failure_reason(error)) from error
+            raise _SkillRefusal(
+                SkillFailureKind.WRITE_FAILED, _write_failure_reason(error)
+            ) from error
 
 
 def _swap_into_place(staging: Path, destination: Path) -> None:
@@ -494,7 +545,9 @@ def _swap_into_place(staging: Path, destination: Path) -> None:
             staging.replace(destination)
         except OSError as error:
             _remove(staging)
-            raise _SkillRefusal(_write_failure_reason(error)) from error
+            raise _SkillRefusal(
+                SkillFailureKind.WRITE_FAILED, _write_failure_reason(error)
+            ) from error
         return
 
     previous = _staging_path(destination)
@@ -502,14 +555,14 @@ def _swap_into_place(staging: Path, destination: Path) -> None:
         destination.replace(previous)
     except OSError as error:
         _remove(staging)
-        raise _SkillRefusal(_write_failure_reason(error)) from error
+        raise _SkillRefusal(SkillFailureKind.WRITE_FAILED, _write_failure_reason(error)) from error
     try:
         staging.replace(destination)
     except OSError as error:
         with contextlib.suppress(OSError):
             previous.replace(destination)
         _remove(staging)
-        raise _SkillRefusal(_swap_failure_reason(error)) from error
+        raise _SkillRefusal(SkillFailureKind.WRITE_FAILED, _swap_failure_reason(error)) from error
     _remove(previous)
 
 
