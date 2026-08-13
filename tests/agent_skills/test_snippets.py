@@ -664,7 +664,6 @@ def executed_flow(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Executed
         executor.shutdown(wait=True)
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_the_whole_tagged_sequence_ran(executed_flow: ExecutedFlow):
     """Everything below reads state the sequence produced, so the run is checked first."""
@@ -677,7 +676,6 @@ def test_the_whole_tagged_sequence_ran(executed_flow: ExecutedFlow):
     )
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_preflight_lands_in_an_announced_in_memory_session(executed_flow: ExecutedFlow):
     """Discovery in a directory with no project is an in-memory session, not an error."""
@@ -694,7 +692,6 @@ def test_preflight_lands_in_an_announced_in_memory_session(executed_flow: Execut
     )
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_the_batch_definition_is_verified_by_reading_data_through_it(
     executed_flow: ExecutedFlow,
@@ -721,7 +718,6 @@ def test_the_batch_definition_is_verified_by_reading_data_through_it(
     )
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_the_time_budget_wrapper_returns_the_probe_result(executed_flow: ExecutedFlow):
     """The wrapper polls while the call is in flight; a fast call just returns."""
@@ -735,7 +731,6 @@ def test_the_time_budget_wrapper_returns_the_probe_result(executed_flow: Execute
     assert wrapped["result"].data is not None
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_validation_reports_every_expectation_on_its_own_terms(executed_flow: ExecutedFlow):
     """One entry per expectation, each carrying the configuration it came from."""
@@ -761,7 +756,6 @@ def test_validation_reports_every_expectation_on_its_own_terms(executed_flow: Ex
     assert described["statistics"]["evaluated_expectations"] == len(result.results)
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_the_suite_the_flow_built_is_registered_with_the_session(executed_flow: ExecutedFlow):
     """Expectations added to a suite the context never saw are lost without a word.
@@ -782,7 +776,6 @@ def test_the_suite_the_flow_built_is_registered_with_the_session(executed_flow: 
     )
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_the_write_out_procedure_reports_every_object_it_wrote(executed_flow: ExecutedFlow):
     """The procedure records failures instead of raising, so the record is the evidence."""
@@ -797,7 +790,6 @@ def test_the_write_out_procedure_reports_every_object_it_wrote(executed_flow: Ex
     ]
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_a_fresh_file_backed_context_loads_the_written_out_work(executed_flow: ExecutedFlow):
     """The written-out project is usable as it stands, from a context that never saw the session."""
@@ -836,7 +828,6 @@ def test_a_fresh_file_backed_context_loads_the_written_out_work(executed_flow: E
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_a_query_over_a_missing_table_yields_a_batch_and_fails_only_when_probed(
     warehouse: SqliteDatasource,
@@ -859,7 +850,6 @@ def test_a_query_over_a_missing_table_yields_a_batch_and_fails_only_when_probed(
     )
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_the_guidance_recovers_the_real_cause_behind_a_bare_probe_failure(
     warehouse: SqliteDatasource,
@@ -887,7 +877,6 @@ def test_the_guidance_recovers_the_real_cause_behind_a_bare_probe_failure(
     )
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_a_metric_error_and_a_data_failure_are_told_apart_by_the_result_payload(
     warehouse: SqliteDatasource,
@@ -926,7 +915,6 @@ def test_a_metric_error_and_a_data_failure_are_told_apart_by_the_result_payload(
     ), f"the cause message changed shape: {messages}"
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_results_come_back_grouped_by_column_rather_than_in_the_order_added(
     ephemeral_context: EphemeralDataContext, warehouse: SqliteDatasource
@@ -957,7 +945,6 @@ def test_results_come_back_grouped_by_column_rather_than_in_the_order_added(
     assert len(result.results) == len(added), "every added expectation is still reported"
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_checks_without_a_column_are_grouped_on_their_own(
     ephemeral_context: EphemeralDataContext, warehouse: SqliteDatasource
@@ -982,7 +969,6 @@ def test_checks_without_a_column_are_grouped_on_their_own(
     )
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_an_expectation_whose_metric_errored_is_moved_to_the_front(
     ephemeral_context: EphemeralDataContext, warehouse: SqliteDatasource
@@ -1006,7 +992,6 @@ def test_an_expectation_whose_metric_errored_is_moved_to_the_front(
     assert not result.results[0].result, "the hoisted entry should carry no payload"
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_an_empty_table_produces_results_rather_than_errors(warehouse: SqliteDatasource):
     """Degenerate data is an ordinary outcome; reporting it as an error is wrong."""
@@ -1033,7 +1018,6 @@ def test_an_empty_table_produces_results_rather_than_errors(warehouse: SqliteDat
     assert mean.result and row_count.result
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_an_all_null_column_produces_results_rather_than_errors(warehouse: SqliteDatasource):
     batch = whole_table_batch(warehouse, "all_null_orders")
@@ -1061,7 +1045,6 @@ def test_an_all_null_column_produces_results_rather_than_errors(warehouse: Sqlit
     assert mean.result == {"observed_value": None}
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_an_empty_window_fails_at_retrieval_before_any_probe_runs(
     ephemeral_context: EphemeralDataContext, warehouse: SqliteDatasource, tmp_path: pathlib.Path
@@ -1095,7 +1078,6 @@ def test_an_empty_window_fails_at_retrieval_before_any_probe_runs(
     assert file_definition.get_batch(batch_parameters={"year": "2024", "month": "02"}) is not None
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_batch_parameter_types_differ_between_file_and_sql_assets(
     ephemeral_context: EphemeralDataContext, warehouse: SqliteDatasource, tmp_path: pathlib.Path
@@ -1128,7 +1110,6 @@ def test_batch_parameter_types_differ_between_file_and_sql_assets(
         sql_definition.get_batch(batch_parameters={"year": "2024", "month": "03"})
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_updating_a_data_source_drops_every_asset_on_it(
     ephemeral_context: EphemeralDataContext, warehouse_path: pathlib.Path
@@ -1155,7 +1136,6 @@ def test_updating_a_data_source_drops_every_asset_on_it(
     )
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_the_flow_snippet_reuses_a_data_source_rather_than_replacing_it(
     ephemeral_context: EphemeralDataContext,
@@ -1203,7 +1183,6 @@ def test_the_flow_snippet_reuses_a_data_source_rather_than_replacing_it(
     assert namespace["batch_definition"].name == "by_month"
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_assets_and_batch_definitions_refuse_a_duplicate_name(warehouse: SqliteDatasource):
     """There is no update factory for either, so the flow has to fetch before it creates."""
@@ -1227,7 +1206,6 @@ def test_assets_and_batch_definitions_refuse_a_duplicate_name(warehouse: SqliteD
         asset.get_batch_definition("never_created")
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_updating_a_suite_replaces_it_instead_of_merging(ephemeral_context: EphemeralDataContext):
     """A fresh suite under an existing name empties it, with no error and no warning."""
@@ -1248,7 +1226,6 @@ def test_updating_a_suite_replaces_it_instead_of_merging(ephemeral_context: Ephe
     )
 
 
-@pytest.mark.big
 @pytest.mark.sqlite
 def test_adding_expectations_to_an_unregistered_suite_persists_nothing(
     ephemeral_context: EphemeralDataContext, warehouse: SqliteDatasource
