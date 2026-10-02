@@ -139,12 +139,12 @@ class ProfilingResultsOverviewSectionRenderer(Renderer):
 
     @classmethod
     def _render_expectation_types(cls, evrs, content_blocks) -> None:
-        type_counts = defaultdict(int)
+        type_counts: defaultdict[str, int] = defaultdict(int)
 
         for evr in evrs.results:
             type_counts[evr.expectation_config.type] += 1
 
-        bullet_list_items = sorted(type_counts.items(), key=lambda kv: -1 * kv[1])
+        type_count_pairs = sorted(type_counts.items(), key=lambda kv: -1 * kv[1])
 
         bullet_list_items = [
             RenderedStringTemplateContent(
@@ -175,7 +175,7 @@ class ProfilingResultsOverviewSectionRenderer(Renderer):
                 },
                 styling={"parent": {"styles": {"list-style-type": "none"}}},
             )
-            for tr in bullet_list_items
+            for tr in type_count_pairs
         ]
 
         bullet_list = RenderedBulletListContent(

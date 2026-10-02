@@ -77,6 +77,8 @@ class ExceptionListContentBlockRenderer(ContentBlockRenderer):
         runtime_configuration = runtime_configuration or {}
         include_column_name = runtime_configuration.get("include_column_name") is not False
         styling = runtime_configuration.get("styling")
+        if result is None or result.expectation_config is None:
+            return []
         # Only render EVR objects for which an exception was raised
         if result.exception_info["raised_exception"] is True:
             template_str = "$expectation_type raised an exception: $exception_message"
